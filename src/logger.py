@@ -26,7 +26,7 @@ def parse_and_save(xml_data):
         from database import run_daily_maintenance
         try:
             run_daily_maintenance()
-            LAST_MAINTENANCE_DAY = now.day
+            LAST_MAINTENANCE_DAY = current_time.day
         except Exception as e:
             print(f"Maintenance Error: {e}")
     
