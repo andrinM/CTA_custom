@@ -57,30 +57,39 @@ def parse_and_save(xml_data):
     except Exception as e: print(f"Parse Error: {e}") 
 
 def on_message(ws, message):
-    print(f"Message {message}")
-    if message.startswith("<values>"):
+    global ID_MAP
+    
+    # PHASE 1: The Menu (First message)
+    if message.startswith("<Navigation"):
+        print("Menu received. Looking for 'Informationen' folder...")
+        nav_root = ET.fromstring(message)
+        for item in nav_root.iter('item'):
+            name_tag = item.find("name")
+            if name_tag is not None and name_tag.text == "Informationen":
+                folder_id = item.get("id")
+                print(f"Opening folder {folder_id}...")
+                ws.send(f"GET;{folder_id}")
+                break
+
+    # PHASE 2: The Dictionary (Second message - contains Name + ID)
+    elif message.startswith("<Content"):
+        print("Dictionary received! Mapping names to IDs...")
+        content_root = ET.fromstring(message)
+        for item in content_root.iter('item'):
+            name_tag = item.find("name")
+            if name_tag is not None and name_tag.text:
+                clean_name = name_tag.text.strip()
+                if clean_name in TARGET_NAMES:
+                    idx = item.get("id")
+                    ID_MAP[idx] = TARGET_NAMES[clean_name]
+                    print(f"-> Learned: {clean_name} is ID {idx}")
+        
+        # After learning, some pumps need one REFRESH to start the values stream
+        ws.send("REFRESH")
+
+    # PHASE 3: The Data Stream (Third and all future messages)
+    elif message.startswith("<values"):
         parse_and_save(message)
-    elif "<Navigation" in message:
-        print("Received Navigation menu. Entering 'Informationen' folder")
-        try:
-            nav_root = ET.fromstring(message)
-            found_id = None
-
-            for item in nav_root.findall(".//item"):
-                name_tag = item.find("name")
-                if name_tag is not None and name_tag.text == "Informationen":
-                    found_id = item.get("id")
-                    break
-            if found_id:
-                print(f"Found 'Informationen' folder at {found_id}. Entering...")
-                ws.send(f"GET;{found_id}")
-            else:
-                print("Could not find 'Informationen' folder. Sending 'REFRESH'")
-                ws.send("REFRESH")
-
-        except Exception as e:
-            print("Nav Parsing Error: {e}")
-            ws.send("REFRESH")
 
 def on_error(ws, error):
     print("Error: %s", error)
