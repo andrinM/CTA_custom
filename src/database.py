@@ -43,8 +43,14 @@ def check_data():
     print(f"{'Timestamp':<20} | {'Aussen':<8} | {'Vorlauf':<8} | {'Ruecklauf':<8}")
     print("-" * 60)
     for row in rows:
-        print(f"{row[0]:<20} | {row[1]:<8} | {row[2]:<8} | {row[3]:<8}")
-    
+            # Convert each value to a string, use "N/A" if the value is None
+            ts = str(row[0])
+            at = str(row[1]) if row[1] is not None else "N/A"
+            vl = str(row[2]) if row[2] is not None else "N/A"
+            rl = str(row[3]) if row[3] is not None else "N/A"
+            
+            print(f"{ts:<20} | {at:<8} | {vl:<8} | {rl:<8}")
+        
     conn.close()
 
 if __name__ == "__main__":
