@@ -55,7 +55,7 @@ def parse_and_save(xml_data):
 
         if found_any_data:
             insert_log(row)
-            LAST_SAVED_MINUTE = current_minute # Update the throttle
+            LAST_SAVED_MINUTE = current_time.minute # Update the throttle
             print(f"[{row['Timestamp']}] Data persisted to SQLite.")
         else:
             print(f"[{timestamp}] Values received, but IDs didn't match our learned map.")

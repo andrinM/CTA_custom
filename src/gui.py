@@ -27,6 +27,7 @@ class HeatPumpGUI(ctk.CTk):
         self.val_aussen = self.create_stat_widget("Outside Temp", "N/A")
         self.val_vorlauf = self.create_stat_widget("Vorlauf", "N/A")
         self.val_ruecklauf = self.create_stat_widget("Rücklauf", "N/A")
+        self.val_leistung = self.create_stat_widget("Leistung Ist", "N/A")
         self.val_update = ctk.CTkLabel(self.sidebar, text="Last update: --", font=("Roboto", 10))
         self.val_update.pack(side="bottom", pady=10)
 
@@ -60,43 +61,52 @@ class HeatPumpGUI(ctk.CTk):
         return val_lbl
 
     def refresh_data(self):
+        # GUARD: Stop if window is closed
+        if not self.winfo_exists():
+            return
+
         try:
-            conn = sqlite3.connect("heatpump.db")
+            # Use Read-Only mode to prevent database locks
+            conn = sqlite3.connect("file:heatpump.db?mode=ro", uri=True)
             cursor = conn.cursor()
             
-            # 1. Fetch Latest Entry for Sidebar
             cursor.execute("SELECT * FROM logs_minute ORDER BY timestamp DESC LIMIT 1")
             last_entry = cursor.fetchone()
             
             if last_entry:
-                # Based on your table structure: ts, aussen, vor, rueck, leist
-                self.val_aussen.configure(text=f"{last_entry[1]} °C")
-                self.val_vorlauf.configure(text=f"{last_entry[2]} °C")
-                self.val_ruecklauf.configure(text=f"{last_entry[3]} °C")
+                # Update Labels
+                self.val_aussen.configure(text=f"{last_entry[1] if last_entry[1] is not None else '--'} °C")
+                self.val_vorlauf.configure(text=f"{last_entry[2] if last_entry[2] is not None else '--'} °C")
+                self.val_ruecklauf.configure(text=f"{last_entry[3] if last_entry[3] is not None else '--'} °C")
+                self.val_leistung.configure(text=f"{last_entry[4] if last_entry[4] is not None else '--'} kW")
                 self.val_update.configure(text=f"Last update: {last_entry[0]}")
 
-            # 2. Fetch last 60 mins for Graph
+            # 2. Graph Update
             cursor.execute("SELECT timestamp, vorlauf, ruecklauf FROM logs_minute ORDER BY timestamp DESC LIMIT 60")
-            rows = cursor.fetchall()[::-1] # Reverse for time flow
+            rows = cursor.fetchall()[::-1]
             
             if rows:
-                times = [r[0].split(" ")[1] for r in rows] # Just time, not date
+                times = [r[0].split(" ")[1] for r in rows] 
                 v_vals = [r[1] for r in rows]
                 r_vals = [r[2] for r in rows]
 
                 self.ax.clear()
                 self.ax.plot(times, v_vals, label="Vorlauf", color="#ff4b4b", linewidth=2)
                 self.ax.plot(times, r_vals, label="Rücklauf", color="#4b4bff", linewidth=2)
-                self.ax.set_xticks(times[::15]) # Show every 15th label to avoid crowding
-                self.ax.legend()
+                # Ensure we have ticks before setting labels
+                if len(times) > 0:
+                    step = max(1, len(times)//4)
+                    self.ax.set_xticks(times[::step])
+                self.ax.legend(facecolor='#2b2b2b', labelcolor='white')
                 self.canvas.draw()
 
             conn.close()
         except Exception as e:
             print(f"GUI Refresh Error: {e}")
         
-        # Schedule next refresh in 10 seconds
-        self.after(10000, self.refresh_data)
+        # Schedule next refresh only if window still exists
+        if self.winfo_exists():
+            self.after(10000, self.refresh_data)
 
 if __name__ == "__main__":
     app = HeatPumpGUI()
