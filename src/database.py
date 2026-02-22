@@ -19,7 +19,7 @@ def insert_log(data):
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO logs (timestamp, aussentemp, vorlauf, ruecklauf, leistung)
+            INSERT INTO logs_minute (timestamp, aussentemp, vorlauf, ruecklauf, leistung)
             VALUES (?, ?, ?, ?, ?)
         ''', (
             data.get("Timestamp"),
@@ -56,7 +56,7 @@ def check_data():
     cursor = conn.cursor()
     
     # Get the last 5 entries
-    cursor.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 5")
+    cursor.execute("SELECT * FROM logs_minute ORDER BY timestamp DESC LIMIT 5")
     rows = cursor.fetchall()
     
     print(f"{'Timestamp':<20} | {'Aussen':<8} | {'Vorlauf':<8} | {'Ruecklauf':<8}")
@@ -77,11 +77,11 @@ def clear_table():
     cursor = conn.cursor()
     
     # This removes all rows but keeps the table structure
-    cursor.execute("DELETE FROM logs")
+    cursor.execute("DELETE FROM logs_minute")
     
     conn.commit()
     conn.close()
-    print("Table 'logs' has been cleared!")
+    print("Table 'logs_minute' has been cleared!")
 
 if __name__ == "__main__":
     check_data()
