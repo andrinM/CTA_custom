@@ -38,29 +38,17 @@ def parse_and_save(xml_data):
             
             # If this ID is one we "learned" earlier in Phase 2
             if idx in ID_MAP:
-                value_tag = item.find("value")
-                if value_tag is not None and value_tag.text:
-                    val_text = value_tag.text
-                    
+                val_text = item.find("value").text
+                if val_text:                    
                     # Clean "39.3°C" -> "39.3"
                     clean_val = "".join(c for c in val_text if c.isdigit() or c in ".-")
-                    
-                    # Get the column name from our map (e.g., "Vorlauf")
-                    column_name = ID_MAP[idx]
-                    row[column_name] = clean_val
+                    row[ID_MAP[idx]] = float(clean_val)
                     found_any_data = True
 
         if found_any_data:
-            # --- Save to CSV ---
-            file_exists = os.path.isfile(CSV_FILE)
-            with open(CSV_FILE, "a", newline="") as f:
-                # Use the values from TARGET_NAMES as headers
-                fieldnames = ["Timestamp"] + list(TARGET_NAMES.values())
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                if not file_exists:
-                    writer.writeheader()
-                writer.writerow(row)
-            print(f"[{timestamp}] Successfully Logged: {row}")
+            insert_log(row)
+            LAST_SAVED_MINUTE = current_minute # Update the throttle
+            print(f"[{row['Timestamp']}] Data persisted to SQLite.")
         else:
             print(f"[{timestamp}] Values received, but IDs didn't match our learned map.")
 
@@ -118,7 +106,7 @@ def on_open(ws):
         time.sleep(2)
         while True:
             ws.send("REFRESH")
-            # time.sleep(60) # Only log data ever 60 secs
+            time.sleep(60) # Only log data ever 60 secs
     import _thread
     _thread.start_new_thread(run, ())
 
