@@ -15,15 +15,23 @@ ID_MAP = {}
 # Names we are looking for in the pump
 TARGET_NAMES = { "Außentemperatur": "Außentemperatur", "Vorlauf": "Vorlauf", "Rücklauf": "Ruecklauf", "Leistung Ist": "Leistung_Ist" }
 LAST_SAVED_MINUTE = -1
+LAST_MAINTENANCE_DAY = datetime.now().day
 
 def parse_and_save(xml_data):
-    global ID_MAP, LAST_SAVED_MINUTE
-
+    global ID_MAP, LAST_SAVED_MINUTE, LAST_MAINTENANCE_DAY
     current_time = datetime.now()
-    current_minute = current_time.minute
+    
+    # Check if maintenance is necessary
+    if current_time.day != LAST_MAINTENANCE_DAY:
+        from database import run_daily_maintenance
+        try:
+            run_daily_maintenance()
+            LAST_MAINTENANCE_DAY = now.day
+        except Exception as e:
+            print(f"Maintenance Error: {e}")
     
     # THROTTLE: Only proceed if the minute has changed
-    if current_minute == LAST_SAVED_MINUTE:
+    if current_time.minute == LAST_SAVED_MINUTE:
         return
 
     try:
