@@ -46,6 +46,20 @@ class HeatPumpGUI(ctk.CTk):
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.main_frame)
         self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
+        self.graph_mode = ctk.StringVar(value="Temperatures") # State variable
+
+        # Add the Dropdown to the Sidebar
+        self.lbl_menu = ctk.CTkLabel(self.sidebar, text="View Select", font=("Roboto", 12, "bold"))
+        self.lbl_menu.pack(pady=(20, 0))
+
+        self.dropdown = ctk.CTkOptionMenu(
+            self.sidebar, 
+            values=["Temperatures", "Power & Outside"],
+            variable=self.graph_mode,
+            command=lambda _: self.refresh_data() # Refresh graph immediately on change
+        )
+        self.dropdown.pack(pady=10, padx=20)
+
         # Initial Update
         self.refresh_data()
 
@@ -61,50 +75,57 @@ class HeatPumpGUI(ctk.CTk):
         return val_lbl
 
     def refresh_data(self):
-        # GUARD: Stop if window is closed
-        if not self.winfo_exists():
-            return
+        if not self.winfo_exists(): return
 
         try:
-            # Use Read-Only mode to prevent database locks
             conn = sqlite3.connect("file:heatpump.db?mode=ro", uri=True)
             cursor = conn.cursor()
             
+            # --- 1. Sidebar Updates (Always show latest) ---
             cursor.execute("SELECT * FROM logs_minute ORDER BY timestamp DESC LIMIT 1")
             last_entry = cursor.fetchone()
-            
             if last_entry:
-                # Update Labels
-                self.val_aussen.configure(text=f"{last_entry[1] if last_entry[1] is not None else '--'} °C")
-                self.val_vorlauf.configure(text=f"{last_entry[2] if last_entry[2] is not None else '--'} °C")
-                self.val_ruecklauf.configure(text=f"{last_entry[3] if last_entry[3] is not None else '--'} °C")
-                self.val_leistung.configure(text=f"{last_entry[4] if last_entry[4] is not None else '--'} kW")
+                self.val_aussen.configure(text=f"{last_entry[1]} °C")
+                self.val_vorlauf.configure(text=f"{last_entry[2]} °C")
+                self.val_ruecklauf.configure(text=f"{last_entry[3]} °C")
+                self.val_leistung.configure(text=f"{last_entry[4]} kW")
                 self.val_update.configure(text=f"Last update: {last_entry[0]}")
 
-            # 2. Graph Update
-            cursor.execute("SELECT timestamp, vorlauf, ruecklauf FROM logs_minute ORDER BY timestamp DESC LIMIT 60")
+            # --- 2. Graph Updates based on Dropdown ---
+            cursor.execute("SELECT timestamp, aussentemp, vorlauf, ruecklauf, leistung FROM logs_minute ORDER BY timestamp DESC LIMIT 60")
             rows = cursor.fetchall()[::-1]
             
             if rows:
-                times = [r[0].split(" ")[1] for r in rows] 
-                v_vals = [r[1] for r in rows]
-                r_vals = [r[2] for r in rows]
-
+                times = [r[0].split(" ")[1] for r in rows] # HH:MM:SS
                 self.ax.clear()
-                self.ax.plot(times, v_vals, label="Vorlauf", color="#ff4b4b", linewidth=2)
-                self.ax.plot(times, r_vals, label="Rücklauf", color="#4b4bff", linewidth=2)
-                # Ensure we have ticks before setting labels
-                if len(times) > 0:
-                    step = max(1, len(times)//4)
-                    self.ax.set_xticks(times[::step])
+                
+                if self.graph_mode.get() == "Temperatures":
+                    v_vals = [r[2] for r in rows]
+                    r_vals = [r[3] for r in rows]
+                    self.ax.plot(times, v_vals, label="Vorlauf", color="#ff4b4b", linewidth=2)
+                    self.ax.plot(times, r_vals, label="Rücklauf", color="#4b4bff", linewidth=2)
+                    self.ax.set_ylabel("Celsius (°C)", color="white")
+                
+                else: # Power & Outside Mode
+                    o_vals = [r[1] for r in rows]
+                    l_vals = [r[4] for r in rows]
+                    self.ax.plot(times, o_vals, label="Outside Temp", color="#4bff4b", linewidth=2)
+                    self.ax.plot(times, l_vals, label="Leistung (kW)", color="#ffcc00", linewidth=2, linestyle="--")
+                    self.ax.set_ylabel("Temp (°C) / Power (kW)", color="white")
+
+                # Formatting the X-Axis
+                step = max(1, len(times)//5)
+                self.ax.set_xticks(times[::step])
+                self.ax.tick_params(axis='x', rotation=45, colors='white')
+                self.ax.tick_params(axis='y', colors='white')
                 self.ax.legend(facecolor='#2b2b2b', labelcolor='white')
+                self.fig.tight_layout()
                 self.canvas.draw()
 
             conn.close()
         except Exception as e:
             print(f"GUI Refresh Error: {e}")
         
-        # Schedule next refresh only if window still exists
         if self.winfo_exists():
             self.after(10000, self.refresh_data)
 
