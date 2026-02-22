@@ -25,7 +25,7 @@ def insert_log(data):
             VALUES (?, ?, ?, ?, ?)
         ''', (
             data.get("Timestamp"),
-            data.get("Aussentemperatur"),
+            data.get("Außentemperatur"),
             data.get("Vorlauf"),
             data.get("Ruecklauf"),
             data.get("Leistung_Ist")
@@ -52,6 +52,17 @@ def check_data():
             print(f"{ts:<20} | {at:<8} | {vl:<8} | {rl:<8}")
         
     conn.close()
+
+def clear_table():
+    conn = sqlite3.connect("heatpump.db")
+    cursor = conn.cursor()
+    
+    # This removes all rows but keeps the table structure
+    cursor.execute("DELETE FROM logs")
+    
+    conn.commit()
+    conn.close()
+    print("Table 'logs' has been cleared!")
 
 if __name__ == "__main__":
     check_data()
