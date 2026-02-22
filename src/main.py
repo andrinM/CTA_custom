@@ -20,41 +20,42 @@ def parse_and_save(xml_data):
         root = ET.fromstring(xml_data)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         row = {"Timestamp": timestamp}
-        found_any = False 
+        found_any_data = False
+
+        # Look through every item in the <values> message
         for item in root.iter('item'):
-            # print(f"ITEM: {item}")
             idx = item.get("id")
-            name_tag = item.find("name")
-            value_tag = item.find("value")
-            # print(f"Found: Nametag: {name_tag}, ValueTag: {value_tag}")
-
-            # --- STEP 1: LEARN THE IDs ---
-            # If we see a name, save it to our memory map
-            if name_tag is not None and name_tag.text:
-                name_text = name_tag.text.strip()
-                if name_text in TARGET_NAMES:
-                    ID_MAP[idx] = TARGET_NAMES[name_text]
-                    print(f"Mapped {name_text} to ID {idx}")
             
-            # --- STEP 2: USE THE IDs ---
-            # If we have an ID in our memory, extract the value
-            if idx in ID_MAP and value_tag is not None and value_tag.text:
-                val_text = value_tag.text
-                clean_val = "".join(c for c in val_text if c.isdigit() or c in ".-")
-                row[ID_MAP[idx]] = clean_val
-                found_any = True
+            # If this ID is one we "learned" earlier in Phase 2
+            if idx in ID_MAP:
+                value_tag = item.find("value")
+                if value_tag is not None and value_tag.text:
+                    val_text = value_tag.text
+                    
+                    # Clean "39.3°C" -> "39.3"
+                    clean_val = "".join(c for c in val_text if c.isdigit() or c in ".-")
+                    
+                    # Get the column name from our map (e.g., "Vorlauf")
+                    column_name = ID_MAP[idx]
+                    row[column_name] = clean_val
+                    found_any_data = True
 
-        if found_any:
+        if found_any_data:
+            # --- Save to CSV ---
             file_exists = os.path.isfile(CSV_FILE)
             with open(CSV_FILE, "a", newline="") as f:
+                # Use the values from TARGET_NAMES as headers
                 fieldnames = ["Timestamp"] + list(TARGET_NAMES.values())
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 if not file_exists:
                     writer.writeheader()
-                    writer.writerow(row)
-                    print(f"[{timestamp}] Data Logged: {row}")
-                    
-    except Exception as e: print(f"Parse Error: {e}") 
+                writer.writerow(row)
+            print(f"[{timestamp}] Successfully Logged: {row}")
+        else:
+            print(f"[{timestamp}] Values received, but IDs didn't match our learned map.")
+
+    except Exception as e:
+        print(f"Parsing Error: {e}")
 
 def on_message(ws, message):
     global ID_MAP
